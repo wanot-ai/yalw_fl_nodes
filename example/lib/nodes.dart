@@ -131,6 +131,7 @@ NodePrototype formatNode() {
         editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
+            maxLines: null,
             initialValue: data.toString(),
             onFieldSubmitted: (value) {
               setData(value, eventType: FieldEventType.submit);
@@ -149,6 +150,7 @@ NodePrototype formatNode() {
         editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
+            maxLines: null,
             initialValue: data.toString(),
             onFieldSubmitted: (value) {
               setData(value, eventType: FieldEventType.submit);
@@ -267,6 +269,7 @@ NodePrototype guidedCompletionNode() {
         editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
+            maxLines: null,
             initialValue: data.toString(),
             onFieldSubmitted: (value) {
               setData(value, eventType: FieldEventType.submit);
