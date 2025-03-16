@@ -151,29 +151,6 @@ class NodeEditorExampleScreenState extends State<NodeEditorExampleScreen> {
     registerDataHandlers(_nodeEditorController);
     registerNodes(context, _nodeEditorController);
 
-    const sampleProjectLink =
-        'https://raw.githubusercontent.com/WilliamKarolDiCioccio/fl_nodes/refs/heads/main/example/assets/www/node_project.json';
-
-    () async {
-      final response = await http.get(Uri.parse(sampleProjectLink));
-      if (response.statusCode == 200) {
-        _nodeEditorController.project.load(
-          data: jsonDecode(response.body),
-        );
-      } else {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Failed to load sample project. Please check your internet connection.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }();
-
     SchedulerBinding.instance.addPostFrameCallback((_) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

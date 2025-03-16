@@ -30,784 +30,375 @@ const FlPortStyle inputDataPortStyle = FlPortStyle(
   shape: FlPortShape.circle,
 );
 
-final FlPortStyle controlOutputPortStyle = FlPortStyle(
-  color: Colors.green,
-  shape: FlPortShape.triangle,
-  linkStyleBuilder: (state) => const FlLinkStyle(
-    gradient: LinearGradient(
-      colors: [Colors.green, Colors.blue],
-      begin: Alignment.centerLeft,
-      end: Alignment.centerRight,
-    ),
-    lineWidth: 3.0,
-    drawMode: FlLinkDrawMode.solid,
-    curveType: FlLinkCurveType.bezier,
-  ),
-);
-
-const FlPortStyle controlInputPortStyle = FlPortStyle(
-  color: Colors.blue,
-  shape: FlPortShape.triangle,
-);
-
-NodePrototype createValueNode<T>({
-  required String idName,
-  required String displayName,
-  required T defaultValue,
-  required Widget Function(T data) visualizerBuilder,
-  Function(
-    dynamic data,
-    Function(dynamic data) setData,
-  )? onVisualizerTap,
-  Widget Function(
-    BuildContext context,
-    Function() removeOverlay,
-    dynamic data,
-    Function(dynamic data, {required FieldEventType eventType}) setData,
-  )? editorBuilder,
+//
+// Helper for building header styles (now passing IconData)
+//
+FlNodeHeaderStyle buildHeaderStyle({
+  required Color headerColor,
+  required bool isCollapsed,
+  EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  TextStyle textStyle = const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
 }) {
-  return NodePrototype(
-    idName: idName,
-    displayName: displayName,
-    description: 'Holds a constant $T value.',
-    styleBuilder: (state) => FlNodeStyle(
-      decoration: defaultNodeStyle(state).decoration,
-      headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-        decoration: BoxDecoration(
-          color: Colors.orange,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(7),
-            topRight: const Radius.circular(7),
-            bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-            bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-          ),
-        ),
+  return FlNodeHeaderStyle(
+    padding: padding,
+    decoration: BoxDecoration(
+      color: headerColor,
+      borderRadius: BorderRadius.only(
+        topLeft: const Radius.circular(7),
+        topRight: const Radius.circular(7),
+        bottomLeft: Radius.circular(isCollapsed ? 7 : 0),
+        bottomRight: Radius.circular(isCollapsed ? 7 : 0),
       ),
     ),
+    textStyle: textStyle,
+    icon: isCollapsed ? Icons.expand_more : Icons.expand_less,
+  );
+}
+
+//
+// Node: convert_text_openai_format
+// This node takes a text input and converts it to an OpenAI message format.
+// It does not require any adjustable parameters.
+//
+NodePrototype convertTextOpenAiFormatNode() {
+  return NodePrototype(
+    idName: 'convert_text_openai_format',
+    displayName: 'Convert Text to OpenAI Format',
+    description: 'Converts plain text to OpenAI message format.',
     ports: [
-      ControlOutputPortPrototype(
-        idName: 'completed',
-        displayName: 'Completed',
-        style: controlOutputPortStyle,
+      DataInputPortPrototype(
+        idName: 'text',
+        displayName: 'Text',
+        dataType: String,
+        style: inputDataPortStyle,
       ),
       DataOutputPortPrototype(
-        idName: 'value',
-        displayName: 'Value',
-        dataType: T,
+        idName: 'messages',
+        displayName: 'Messages',
+        dataType: dynamic,
+        style: outputDataPortStyle,
+      ),
+    ],
+    fields: [],
+    onExecute: (ports, fields, state, f, p) async {
+      // Not executed in the editor.
+    },
+    styleBuilder: (state) => FlNodeStyle(
+      decoration: BoxDecoration(
+        color: Colors.lightBlueAccent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      headerStyleBuilder: (state) => buildHeaderStyle(
+        headerColor: Colors.blue,
+        isCollapsed: state.isCollapsed,
+      ),
+    ),
+  );
+}
+
+//
+// Node: format
+// This node formats and validates output using provided schemas.
+// Its parameters are "expected_schema" and "desired_schema".
+//
+NodePrototype formatNode() {
+  return NodePrototype(
+    idName: 'format',
+    displayName: 'Format Output',
+    description: 'Formats and validates output using provided schema definitions.',
+    ports: [
+      DataInputPortPrototype(
+        idName: 'input',
+        displayName: 'Input',
+        dataType: Map,
+        style: inputDataPortStyle,
+      ),
+      DataOutputPortPrototype(
+        idName: 'result',
+        displayName: 'Result',
+        dataType: String,
         style: outputDataPortStyle,
       ),
     ],
     fields: [
       FieldPrototype(
-        idName: 'value',
-        displayName: 'Value',
-        dataType: T,
-        defaultData: defaultValue,
-        visualizerBuilder: (data) => visualizerBuilder(data as T),
-        onVisualizerTap: onVisualizerTap,
-        editorBuilder: editorBuilder,
+        idName: 'expected_schema',
+        displayName: 'Expected Schema',
+        dataType: Map,
+        defaultData: {},
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'desired_schema',
+        displayName: 'Desired Schema',
+        dataType: Map,
+        defaultData: {},
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
       ),
     ],
     onExecute: (ports, fields, state, f, p) async {
-      p({('value', fields['value']!)});
-
-      unawaited(f({('completed')}));
+      // Not executed in the editor.
     },
+    styleBuilder: (state) => FlNodeStyle(
+      decoration: BoxDecoration(
+        color: Colors.tealAccent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      headerStyleBuilder: (state) => buildHeaderStyle(
+        headerColor: Colors.teal,
+        isCollapsed: state.isCollapsed,
+      ),
+    ),
   );
 }
 
+//
+// Node: guided_completion
+// This node generates a response based on a provided response schema.
+// Its parameters include model, temperature, max_tokens, and response_scheme.
+//
+NodePrototype guidedCompletionNode() {
+  return NodePrototype(
+    idName: 'vertex.guided_completion',
+    displayName: 'Guided Completion',
+    description: 'Generates a response based on a provided response schema.',
+    ports: [
+      DataInputPortPrototype(
+        idName: 'messages',
+        displayName: 'Messages',
+        dataType: List,
+        style: inputDataPortStyle,
+      ),
+      DataOutputPortPrototype(
+        idName: 'response',
+        displayName: 'Response',
+        dataType: Map,
+        style: outputDataPortStyle,
+      ),
+    ],
+    fields: [
+      FieldPrototype(
+        idName: 'model',
+        displayName: 'Model',
+        dataType: String,
+        defaultData: "gemini-1.5-flash-002",
+        visualizerBuilder: (data) =>
+            Text(data, style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data,
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'temperature',
+        displayName: 'Temperature',
+        dataType: double,
+        defaultData: 0.1,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = double.tryParse(value) ?? 0.1;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'max_tokens',
+        displayName: 'Max Tokens',
+        dataType: int,
+        defaultData: 2048,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = int.tryParse(value) ?? 2048;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'response_scheme',
+        displayName: 'Response Scheme',
+        dataType: Map,
+        defaultData: {},
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+    ],
+    onExecute: (ports, fields, state, f, p) async {
+      // Not executed in the editor.
+    },
+    styleBuilder: (state) => FlNodeStyle(
+      decoration: BoxDecoration(
+        color: Colors.pinkAccent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      headerStyleBuilder: (state) => buildHeaderStyle(
+        headerColor: Colors.pink,
+        isCollapsed: state.isCollapsed,
+      ),
+    ),
+  );
+}
+
+//
+// (Optional) Node: chat_completion
+// This node generates a chat response using LLM chat completion.
+// Parameters are defined similarly.
+//
+NodePrototype chatCompletionNode() {
+  return NodePrototype(
+    idName: 'vertex.chat_completion',
+    displayName: 'Chat Completion',
+    description: 'Generates a chat response using LLM chat completion.',
+    ports: [
+      DataInputPortPrototype(
+        idName: 'messages',
+        displayName: 'Messages',
+        dataType: List,
+        style: inputDataPortStyle,
+      ),
+      DataOutputPortPrototype(
+        idName: 'response',
+        displayName: 'Response',
+        dataType: String,
+        style: outputDataPortStyle,
+      ),
+    ],
+    fields: [
+      FieldPrototype(
+        idName: 'model',
+        displayName: 'Model',
+        dataType: String,
+        defaultData: "default-chat-model",
+        visualizerBuilder: (data) =>
+            Text(data, style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data,
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'temperature',
+        displayName: 'Temperature',
+        dataType: double,
+        defaultData: 0.2,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = double.tryParse(value) ?? 0.2;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'max_tokens',
+        displayName: 'Max Tokens',
+        dataType: int,
+        defaultData: 2048,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = int.tryParse(value) ?? 2048;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+    ],
+    onExecute: (ports, fields, state, f, p) async {
+      // Not executed in the editor.
+    },
+    styleBuilder: (state) => FlNodeStyle(
+      decoration: BoxDecoration(
+        color: Colors.greenAccent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      headerStyleBuilder: (state) => buildHeaderStyle(
+        headerColor: Colors.green,
+        isCollapsed: state.isCollapsed,
+      ),
+    ),
+  );
+}
+
+//
+// Register the YALW nodes (only those that define parameters)
+//
 void registerNodes(BuildContext context, FlNodeEditorController controller) {
-  controller.registerNodePrototype(
-    createValueNode<double>(
-      idName: 'numericValue',
-      displayName: 'Numeric Value',
-      defaultValue: 0.0,
-      visualizerBuilder: (data) => Text(
-        data.toString(),
-        style: const TextStyle(color: Colors.white),
-      ),
-      editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 100),
-        child: TextFormField(
-          initialValue: data.toString(),
-          keyboardType: TextInputType.number,
-          onChanged: (value) {
-            setData(
-              double.tryParse(value) ?? 0.0,
-              eventType: FieldEventType.change,
-            );
-          },
-          onFieldSubmitted: (value) {
-            setData(
-              double.tryParse(value) ?? 0.0,
-              eventType: FieldEventType.submit,
-            );
-            removeOverlay();
-          },
-        ),
-      ),
-    ),
-  );
-
-  controller.registerNodePrototype(
-    createValueNode<bool>(
-      idName: 'boolValue',
-      displayName: 'Boolean Value',
-      defaultValue: false,
-      visualizerBuilder: (data) => Icon(
-        data ? Icons.check : Icons.close,
-        color: Colors.white,
-        size: 18,
-      ),
-      onVisualizerTap: (data, setData) => setData(!data),
-    ),
-  );
-
-  controller.registerNodePrototype(
-    createValueNode<String>(
-      idName: 'stringValue',
-      displayName: 'String Value',
-      defaultValue: '',
-      visualizerBuilder: (data) => Text(
-        '"$data"',
-        style: const TextStyle(color: Colors.white),
-      ),
-      editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 200),
-        child: TextFormField(
-          initialValue: data,
-          onChanged: (value) {
-            setData(
-              value,
-              eventType: FieldEventType.change,
-            );
-          },
-          onFieldSubmitted: (value) {
-            setData(
-              value,
-              eventType: FieldEventType.submit,
-            );
-            removeOverlay();
-          },
-        ),
-      ),
-    ),
-  );
-
-  controller.registerNodePrototype(
-    createValueNode<List<int>>(
-      idName: 'numericListValue',
-      displayName: 'Numeric List Value',
-      defaultValue: [],
-      visualizerBuilder: (data) => Text(
-        data.length > 3
-            ? '[${data.take(3).join(', ')}...]'
-            : '[${data.join(', ')}]',
-        style: const TextStyle(color: Colors.white),
-      ),
-      editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 200),
-        child: TextFormField(
-          initialValue: data.join(', '),
-          onChanged: (value) {
-            setData(
-              value.split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList(),
-              eventType: FieldEventType.change,
-            );
-          },
-          onFieldSubmitted: (value) {
-            setData(
-              value.split(',').map((e) => int.tryParse(e.trim()) ?? 0).toList(),
-              eventType: FieldEventType.submit,
-            );
-            removeOverlay();
-          },
-        ),
-      ),
-    ),
-  );
-
-  controller.registerNodePrototype(
-    createValueNode<List<bool>>(
-      idName: 'boolListValue',
-      displayName: 'Boolean List Value',
-      defaultValue: [],
-      visualizerBuilder: (data) => Text(
-        data.length > 3
-            ? '[${data.take(3).map((e) => e ? 'true' : 'false').join(', ')}...]'
-            : '[${data.map((e) => e ? 'true' : 'false').join(', ')}]',
-        style: const TextStyle(color: Colors.white),
-      ),
-      editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 200),
-        child: TextFormField(
-          initialValue: data.map((e) => e ? 'true' : 'false').join(', '),
-          onChanged: (value) {
-            setData(
-              value.split(',').map((e) => e.trim() == 'true').toList(),
-              eventType: FieldEventType.change,
-            );
-          },
-          onFieldSubmitted: (value) {
-            setData(
-              value.split(',').map((e) => e.trim() == 'true').toList(),
-              eventType: FieldEventType.submit,
-            );
-            removeOverlay();
-          },
-        ),
-      ),
-    ),
-  );
-
-  String formatStringList(List<String> data) {
-    if (data.isEmpty) return '[]';
-    return '[${data.length > 3 ? '${data.take(3).join(', ')}...' : data.join(', ')}]';
-  }
-
-  String serializeStringList(List<String> data) {
-    return data.map((e) => '"$e"').join(', ');
-  }
-
-  List<String> parseStringList(String input) {
-    final regex = RegExp(r'"(.*?)"');
-    return regex.allMatches(input).map((e) => e.group(1)!).toList();
-  }
-
-  controller.registerNodePrototype(
-    createValueNode<List<String>>(
-      idName: 'stringListValue',
-      displayName: 'String List Value',
-      defaultValue: [],
-      visualizerBuilder: (data) => Text(
-        formatStringList(data),
-        style: const TextStyle(color: Colors.white),
-      ),
-      editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 200),
-        child: TextFormField(
-          initialValue: serializeStringList(data),
-          onChanged: (value) => setData(
-            parseStringList(value),
-            eventType: FieldEventType.change,
-          ),
-          onFieldSubmitted: (value) {
-            setData(
-              parseStringList(value),
-              eventType: FieldEventType.submit,
-            );
-            removeOverlay();
-          },
-        ),
-      ),
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'operator',
-      displayName: 'Operator',
-      description: 'Applies a chosen operation to two numbers.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.pink,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlInputPortPrototype(
-          idName: 'exec',
-          displayName: 'Exec',
-          style: controlInputPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'a',
-          displayName: 'A',
-          dataType: double,
-          style: inputDataPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'b',
-          displayName: 'B',
-          dataType: double,
-          style: inputDataPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'completed',
-          displayName: 'Completed',
-          style: controlOutputPortStyle,
-        ),
-        DataOutputPortPrototype(
-          idName: 'result',
-          displayName: 'Result',
-          dataType: double,
-          style: outputDataPortStyle,
-        ),
-      ],
-      fields: [
-        FieldPrototype(
-          idName: 'operation',
-          displayName: 'Operation',
-          dataType: Operator,
-          defaultData: Operator.add,
-          visualizerBuilder: (data) => Text(
-            data.toString().split('.').last,
-            style: const TextStyle(color: Colors.white),
-          ),
-          editorBuilder: (context, removeOverlay, data, setData) =>
-              SegmentedButton<Operator>(
-            segments: const [
-              ButtonSegment(value: Operator.add, label: Text('Add')),
-              ButtonSegment(value: Operator.subtract, label: Text('Subtract')),
-              ButtonSegment(value: Operator.multiply, label: Text('Multiply')),
-              ButtonSegment(value: Operator.divide, label: Text('Divide')),
-            ],
-            selected: {data as Operator},
-            onSelectionChanged: (newSelection) {
-              setData(newSelection.first, eventType: FieldEventType.submit);
-              removeOverlay();
-            },
-            direction: Axis.horizontal,
-          ),
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        final a = ports['a']! as double;
-        final b = ports['b']! as double;
-        final op = fields['operation']! as Operator;
-
-        switch (op) {
-          case Operator.add:
-            p({('result', a + b)});
-          case Operator.subtract:
-            p({('result', a - b)});
-          case Operator.multiply:
-            p({('result', a * b)});
-          case Operator.divide:
-            p({('result', b == 0 ? 0 : a / b)});
-        }
-
-        unawaited(f({('completed')}));
-      },
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'random',
-      displayName: 'Random',
-      description: 'Outputs a random number between 0 and 1.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.purple,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlOutputPortPrototype(
-          idName: 'completed',
-          displayName: 'Completed',
-          style: controlOutputPortStyle,
-        ),
-        DataOutputPortPrototype(
-          idName: 'value',
-          displayName: 'Value',
-          dataType: double,
-          style: outputDataPortStyle,
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        p({('value', Random().nextDouble())});
-
-        unawaited(f({('completed')}));
-      },
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'if',
-      displayName: 'If',
-      description: 'Executes a branch based on a condition.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.green,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlInputPortPrototype(
-          idName: 'exec',
-          displayName: 'Exec',
-          style: controlInputPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'condition',
-          displayName: 'Condition',
-          dataType: bool,
-          style: inputDataPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'trueBranch',
-          displayName: 'True',
-          style: controlOutputPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'falseBranch',
-          displayName: 'False',
-          style: controlOutputPortStyle,
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        final condition = ports['condition']! as bool;
-
-        condition
-            ? unawaited(f({('trueBranch')}))
-            : unawaited(f({('falseBranch')}));
-      },
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'comparator',
-      displayName: 'Comparator',
-      description: 'Compares two numbers based on a chosen comparator.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.cyan,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlInputPortPrototype(
-          idName: 'exec',
-          displayName: 'Exec',
-          style: controlInputPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'a',
-          displayName: 'A',
-          dataType: dynamic,
-          style: inputDataPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'b',
-          displayName: 'B',
-          dataType: dynamic,
-          style: inputDataPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'completed',
-          displayName: 'Completed',
-          style: controlOutputPortStyle,
-        ),
-        DataOutputPortPrototype(
-          idName: 'result',
-          displayName: 'Result',
-          dataType: bool,
-          style: outputDataPortStyle,
-        ),
-      ],
-      fields: [
-        FieldPrototype(
-          idName: 'comparator',
-          displayName: 'Comparator',
-          dataType: Comparator,
-          defaultData: Comparator.equal,
-          visualizerBuilder: (data) => Text(
-            data.toString().split('.').last,
-            style: const TextStyle(color: Colors.white),
-          ),
-          editorBuilder: (context, removeOverlay, data, setData) =>
-              SegmentedButton<Comparator>(
-            segments: const [
-              ButtonSegment(value: Comparator.equal, label: Text('==')),
-              ButtonSegment(value: Comparator.notEqual, label: Text('!=')),
-              ButtonSegment(value: Comparator.greater, label: Text('>')),
-              ButtonSegment(value: Comparator.greaterEqual, label: Text('>=')),
-              ButtonSegment(value: Comparator.less, label: Text('<')),
-              ButtonSegment(value: Comparator.lessEqual, label: Text('<=')),
-            ],
-            selected: {data as Comparator},
-            onSelectionChanged: (newSelection) {
-              setData(newSelection.first, eventType: FieldEventType.submit);
-              removeOverlay();
-            },
-            direction: Axis.horizontal,
-          ),
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        final a = ports['a']! as dynamic;
-        final b = ports['b']! as dynamic;
-        final comp = fields['comparator']! as Comparator;
-
-        switch (comp) {
-          case Comparator.equal:
-            p({('result', a == b)});
-          case Comparator.notEqual:
-            p({('result', a != b)});
-          case Comparator.greater:
-            p({('result', a > b)});
-          case Comparator.greaterEqual:
-            p({('result', a >= b)});
-          case Comparator.less:
-            p({('result', a < b)});
-          case Comparator.lessEqual:
-            p({('result', a <= b)});
-        }
-
-        unawaited(f({('completed')}));
-      },
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'print',
-      displayName: 'Print',
-      description: 'Prints a value to the console.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.deepPurple,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlInputPortPrototype(
-          idName: 'exec',
-          displayName: 'Exec',
-          style: controlInputPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'value',
-          displayName: 'Value',
-          dataType: dynamic,
-          style: inputDataPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'completed',
-          displayName: 'Completed',
-          style: controlOutputPortStyle,
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        if (kDebugMode) {
-          print(ports['value']);
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Value: ${ports['value']}'),
-          ),
-        );
-
-        unawaited(f({('completed')}));
-      },
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'round',
-      displayName: 'Round',
-      description: 'Rounds a number to a specified number of decimals.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.blue,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlInputPortPrototype(
-          idName: 'exec',
-          displayName: 'Exec',
-          style: controlInputPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'value',
-          displayName: 'Value',
-          dataType: double,
-          style: inputDataPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'completed',
-          displayName: 'Completed',
-          style: controlOutputPortStyle,
-        ),
-        DataOutputPortPrototype(
-          idName: 'rounded',
-          displayName: 'Rounded',
-          dataType: int,
-          style: outputDataPortStyle,
-        ),
-      ],
-      fields: [
-        FieldPrototype(
-          idName: 'decimals',
-          displayName: 'Decimals',
-          dataType: int,
-          defaultData: 2,
-          visualizerBuilder: (data) => Text(
-            data.toString(),
-            style: const TextStyle(color: Colors.white),
-          ),
-          editorBuilder: (context, removeOverlay, data, setData) =>
-              ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 100),
-            child: TextFormField(
-              initialValue: data.toString(),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                setData(
-                  int.tryParse(value) ?? 0,
-                  eventType: FieldEventType.change,
-                );
-              },
-              onFieldSubmitted: (value) {
-                setData(
-                  int.tryParse(value) ?? 0,
-                  eventType: FieldEventType.submit,
-                );
-                removeOverlay();
-              },
-            ),
-          ),
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        final double value = ports['value']! as double;
-        final int decimals = fields['decimals']! as int;
-
-        p({('rounded', double.parse(value.toStringAsFixed(decimals)))});
-
-        unawaited(f({('completed')}));
-      },
-    ),
-  );
-
-  controller.registerNodePrototype(
-    NodePrototype(
-      idName: 'forEachLoop',
-      displayName: 'For Each Loop',
-      description: 'Executes a loop for a specified number of iterations.',
-      styleBuilder: (state) => FlNodeStyle(
-        decoration: defaultNodeStyle(state).decoration,
-        headerStyleBuilder: (state) => defaultNodeHeaderStyle(state).copyWith(
-          decoration: BoxDecoration(
-            color: Colors.teal,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(7),
-              topRight: const Radius.circular(7),
-              bottomLeft: Radius.circular(state.isCollapsed ? 7 : 0),
-              bottomRight: Radius.circular(state.isCollapsed ? 7 : 0),
-            ),
-          ),
-        ),
-      ),
-      ports: [
-        ControlInputPortPrototype(
-          idName: 'exec',
-          displayName: 'Exec',
-          style: controlInputPortStyle,
-        ),
-        DataInputPortPrototype(
-          idName: 'list',
-          displayName: 'List',
-          dataType: dynamic,
-          style: inputDataPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'loopBody',
-          displayName: 'Loop Body',
-          style: controlOutputPortStyle,
-        ),
-        ControlOutputPortPrototype(
-          idName: 'completed',
-          displayName: 'Completed',
-          style: controlOutputPortStyle,
-        ),
-        DataOutputPortPrototype(
-          idName: 'listElem',
-          displayName: 'List Element',
-          dataType: dynamic,
-          style: outputDataPortStyle,
-        ),
-        DataOutputPortPrototype(
-          idName: 'listIdx',
-          displayName: 'List Index',
-          dataType: int,
-          style: outputDataPortStyle,
-        ),
-      ],
-      onExecute: (ports, fields, state, f, p) async {
-        final List<dynamic> list = ports['list']! as List<dynamic>;
-
-        late int i;
-
-        if (!state.containsKey('iteration')) {
-          i = state['iteration'] = 0;
-        } else {
-          i = state['iteration'] as int;
-        }
-
-        if (i < list.length) {
-          p({('listElem', list[i]), ('listIdx', i)});
-          state['iteration'] = ++i;
-          await f({'loopBody'});
-        } else {
-          unawaited(f({('completed')}));
-        }
-      },
-    ),
-  );
+  controller.registerNodePrototype(formatNode());
+  controller.registerNodePrototype(convertTextOpenAiFormatNode());
+  controller.registerNodePrototype(guidedCompletionNode());
+  // Uncomment if needed:
+  controller.registerNodePrototype(chatCompletionNode());
 }
