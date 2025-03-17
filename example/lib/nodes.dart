@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:fl_nodes/fl_nodes.dart';
+
+import './widgets/json_editor.dart';
 
 enum Operator { add, subtract, multiply, divide }
 
@@ -30,6 +33,8 @@ const FlPortStyle inputDataPortStyle = FlPortStyle(
   shape: FlPortShape.circle,
 );
 
+const encoder = JsonEncoder.withIndent('  ');
+const decoder = JsonDecoder();
 //
 // Helper for building header styles (now passing IconData)
 //
@@ -37,7 +42,8 @@ FlNodeHeaderStyle buildHeaderStyle({
   required Color headerColor,
   required bool isCollapsed,
   EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  TextStyle textStyle = const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+  TextStyle textStyle =
+      const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
 }) {
   return FlNodeHeaderStyle(
     padding: padding,
@@ -105,7 +111,8 @@ NodePrototype formatNode() {
   return NodePrototype(
     idName: 'format',
     displayName: 'Format Output',
-    description: 'Formats and validates output using provided schema definitions.',
+    description:
+        'Formats and validates output using provided schema definitions.',
     ports: [
       DataInputPortPrototype(
         idName: 'input',
@@ -126,39 +133,86 @@ NodePrototype formatNode() {
         displayName: 'Expected Schema',
         dataType: Map,
         defaultData: {},
-        visualizerBuilder: (data) =>
-            Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 200),
-          child: TextFormField(
-            maxLines: null,
-            initialValue: data.toString(),
-            onFieldSubmitted: (value) {
-              setData(value, eventType: FieldEventType.submit);
-              removeOverlay();
+        visualizerBuilder: (data) {
+          // Get a more formatted preview for maps and lists
+          String getPreview(dynamic value) {
+            if (value is Map) {
+              return '{${value.length} fields}';
+            } else if (value is List) {
+              return '[${value.length} items]';
+            } else if (value is String && value.length > 30) {
+              return '"${value.substring(0, 27)}..."';
+            } else {
+              return value.toString();
+            }
+          }
+
+          return Text(
+            getPreview(data),
+            style: const TextStyle(color: Colors.white),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          );
+        },
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: JsonEditorField(
+            initialValue: encoder.convert(data),
+            onChanged: (value) {
+              try {
+                final parsed = jsonDecode(value);
+                // Use FieldEventType.submit to ensure the framework recognizes this as a final value
+                setData(parsed, eventType: FieldEventType.submit);
+              } catch (e) {
+                print('Invalid JSON: $e');
+              }
             },
           ),
         ),
       ),
       FieldPrototype(
-        idName: 'desired_schema',
-        displayName: 'Desired Schema',
-        dataType: Map,
-        defaultData: {},
-        visualizerBuilder: (data) =>
-            Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 200),
-          child: TextFormField(
-            maxLines: null,
-            initialValue: data.toString(),
-            onFieldSubmitted: (value) {
-              setData(value, eventType: FieldEventType.submit);
-              removeOverlay();
-            },
-          ),
-        ),
-      ),
+          idName: 'desired_schema',
+          displayName: 'Desired Schema',
+          dataType: Map,
+          defaultData: {},
+          visualizerBuilder: (data) {
+            // Get a more formatted preview for maps and lists
+            String getPreview(dynamic value) {
+              if (value is Map) {
+                return '{${value.length} fields}';
+              } else if (value is List) {
+                return '[${value.length} items]';
+              } else if (value is String && value.length > 30) {
+                return '"${value.substring(0, 27)}..."';
+              } else {
+                return value.toString();
+              }
+            }
+
+            return Text(
+              getPreview(data),
+              style: const TextStyle(color: Colors.white),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            );
+          },
+          editorBuilder: (context, removeOverlay, data, setData) =>
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: JsonEditorField(
+                  initialValue: encoder.convert(data),
+                  onChanged: (value) {
+                    try {
+                      final parsed = jsonDecode(value);
+                      // Use FieldEventType.submit to ensure the framework recognizes this as a final value
+                      setData(parsed, eventType: FieldEventType.submit);
+                    } catch (e) {
+                      print('Invalid JSON: $e');
+                    }
+                  },
+                ),
+              )),
     ],
     onExecute: (ports, fields, state, f, p) async {
       // Not executed in the editor.
@@ -184,8 +238,8 @@ NodePrototype formatNode() {
 NodePrototype guidedCompletionNode() {
   return NodePrototype(
     idName: 'vertex.guided_completion',
-    displayName: 'Guided Completion',
-    description: 'Generates a response based on a provided response schema.',
+    displayName: 'Vertex Guided Completion',
+    description: '[VertexAI] Generates a response based on a provided response schema.',
     ports: [
       DataInputPortPrototype(
         idName: 'messages',
@@ -208,7 +262,8 @@ NodePrototype guidedCompletionNode() {
         defaultData: "gemini-1.5-flash-002",
         visualizerBuilder: (data) =>
             Text(data, style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
             initialValue: data,
@@ -226,7 +281,8 @@ NodePrototype guidedCompletionNode() {
         defaultData: 0.1,
         visualizerBuilder: (data) =>
             Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
             initialValue: data.toString(),
@@ -246,7 +302,8 @@ NodePrototype guidedCompletionNode() {
         defaultData: 2048,
         visualizerBuilder: (data) =>
             Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
             initialValue: data.toString(),
@@ -264,16 +321,40 @@ NodePrototype guidedCompletionNode() {
         displayName: 'Response Scheme',
         dataType: Map,
         defaultData: {},
-        visualizerBuilder: (data) =>
-            Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 200),
-          child: TextFormField(
-            maxLines: null,
-            initialValue: data.toString(),
-            onFieldSubmitted: (value) {
-              setData(value, eventType: FieldEventType.submit);
-              removeOverlay();
+        visualizerBuilder: (data) {
+          // Get a more formatted preview for maps and lists
+          String getPreview(dynamic value) {
+            if (value is Map) {
+              return '{${value.length} fields}';
+            } else if (value is List) {
+              return '[${value.length} items]';
+            } else if (value is String && value.length > 30) {
+              return '"${value.substring(0, 27)}..."';
+            } else {
+              return value.toString();
+            }
+          }
+
+          return Text(
+            getPreview(data),
+            style: const TextStyle(color: Colors.white),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          );
+        },
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: JsonEditorField(
+            initialValue: encoder.convert(data),
+            onChanged: (value) {
+              try {
+                final parsed = jsonDecode(value);
+                // Use FieldEventType.submit to ensure the framework recognizes this as a final value
+                setData(parsed, eventType: FieldEventType.submit);
+              } catch (e) {
+                print('Invalid JSON: $e');
+              }
             },
           ),
         ),
@@ -303,8 +384,8 @@ NodePrototype guidedCompletionNode() {
 NodePrototype chatCompletionNode() {
   return NodePrototype(
     idName: 'vertex.chat_completion',
-    displayName: 'Chat Completion',
-    description: 'Generates a chat response using LLM chat completion.',
+    displayName: 'Vertex Chat Completion',
+    description: 'Generates a chat response using vertexAI chat completion.',
     ports: [
       DataInputPortPrototype(
         idName: 'messages',
@@ -327,7 +408,8 @@ NodePrototype chatCompletionNode() {
         defaultData: "default-chat-model",
         visualizerBuilder: (data) =>
             Text(data, style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
             initialValue: data,
@@ -345,7 +427,8 @@ NodePrototype chatCompletionNode() {
         defaultData: 0.2,
         visualizerBuilder: (data) =>
             Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
             initialValue: data.toString(),
@@ -359,13 +442,35 @@ NodePrototype chatCompletionNode() {
         ),
       ),
       FieldPrototype(
+        idName: 'top_p',
+        displayName: 'Top P',
+        dataType: double,
+        defaultData: 1.0,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = double.tryParse(value) ?? 1.0;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
         idName: 'max_tokens',
         displayName: 'Max Tokens',
         dataType: int,
         defaultData: 2048,
         visualizerBuilder: (data) =>
             Text(data.toString(), style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) => ConstrainedBox(
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 200),
           child: TextFormField(
             initialValue: data.toString(),
@@ -373,6 +478,26 @@ NodePrototype chatCompletionNode() {
             onFieldSubmitted: (value) {
               final parsed = int.tryParse(value) ?? 2048;
               setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'system_message',
+        displayName: 'System Prompt',
+        dataType: String,
+        defaultData: "",
+        visualizerBuilder: (data) =>
+            Text(data, style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data,
+            maxLines: null,
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
               removeOverlay();
             },
           ),
@@ -402,6 +527,5 @@ void registerNodes(BuildContext context, FlNodeEditorController controller) {
   controller.registerNodePrototype(formatNode());
   controller.registerNodePrototype(convertTextOpenAiFormatNode());
   controller.registerNodePrototype(guidedCompletionNode());
-  // Uncomment if needed:
   controller.registerNodePrototype(chatCompletionNode());
 }
