@@ -239,7 +239,8 @@ NodePrototype guidedCompletionNode() {
   return NodePrototype(
     idName: 'vertex.guided_completion',
     displayName: 'Vertex Guided Completion',
-    description: '[VertexAI] Generates a response based on a provided response schema.',
+    description:
+        '[VertexAI] Generates a response based on a provided response schema.',
     ports: [
       DataInputPortPrototype(
         idName: 'messages',
@@ -405,7 +406,7 @@ NodePrototype chatCompletionNode() {
         idName: 'model',
         displayName: 'Model',
         dataType: String,
-        defaultData: "default-chat-model",
+        defaultData: "",
         visualizerBuilder: (data) =>
             Text(data, style: const TextStyle(color: Colors.white)),
         editorBuilder: (context, removeOverlay, data, setData) =>
@@ -488,20 +489,37 @@ NodePrototype chatCompletionNode() {
         displayName: 'System Prompt',
         dataType: String,
         defaultData: "",
-        visualizerBuilder: (data) =>
-            Text(data, style: const TextStyle(color: Colors.white)),
-        editorBuilder: (context, removeOverlay, data, setData) =>
-            ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 200),
-          child: TextFormField(
-            initialValue: data,
-            maxLines: null,
-            onFieldSubmitted: (value) {
-              setData(value, eventType: FieldEventType.submit);
-              removeOverlay();
-            },
+        visualizerBuilder: (data) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 120, maxHeight: 40),
+          child: Text(
+            data,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white),
           ),
         ),
+        editorBuilder: (context, removeOverlay, data, setData) {
+          // Use focusnode for updating values
+          final focusNode = FocusNode();
+          final textController = TextEditingController(text: data);
+
+          focusNode.addListener(() {
+            if (!focusNode.hasFocus) {
+              // The TextFormField has lost focus.  Submit the data.
+              setData(textController.text, eventType: FieldEventType.submit);
+              removeOverlay(); // Close the editor
+            }
+          });
+
+          return ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: TextFormField(
+              controller: textController, // Use the controller
+              focusNode: focusNode, // Assign the FocusNode
+              maxLines: null, // Allow multiple lines
+            ),
+          );
+        },
       ),
     ],
     onExecute: (ports, fields, state, f, p) async {
