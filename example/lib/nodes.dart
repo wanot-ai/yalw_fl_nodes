@@ -251,7 +251,7 @@ NodePrototype guidedCompletionNode() {
       DataOutputPortPrototype(
         idName: 'response',
         displayName: 'Response',
-        dataType: String,
+        dataType: Map,
         style: outputDataPortStyle,
       ),
     ],
@@ -430,7 +430,7 @@ NodePrototype guidedCompletionNodeOAI() {
       DataOutputPortPrototype(
         idName: 'response',
         displayName: 'Response',
-        dataType: String,
+        dataType: Map,
         style: outputDataPortStyle,
       ),
     ],
