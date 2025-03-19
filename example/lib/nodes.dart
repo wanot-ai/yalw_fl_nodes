@@ -81,7 +81,7 @@ NodePrototype convertTextOpenAiFormatNode() {
       DataOutputPortPrototype(
         idName: 'messages',
         displayName: 'Messages',
-        dataType: dynamic,
+        dataType: List,
         style: outputDataPortStyle,
       ),
     ],
@@ -123,7 +123,7 @@ NodePrototype formatNode() {
       DataOutputPortPrototype(
         idName: 'result',
         displayName: 'Result',
-        dataType: String,
+        dataType: Map,
         style: outputDataPortStyle,
       ),
     ],
@@ -251,7 +251,7 @@ NodePrototype guidedCompletionNode() {
       DataOutputPortPrototype(
         idName: 'response',
         displayName: 'Response',
-        dataType: Map,
+        dataType: String,
         style: outputDataPortStyle,
       ),
     ],
@@ -318,8 +318,187 @@ NodePrototype guidedCompletionNode() {
         ),
       ),
       FieldPrototype(
+        idName: 'system_message',
+        displayName: 'System Prompt',
+        dataType: String,
+        defaultData: "",
+        visualizerBuilder: (data) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 120, maxHeight: 40),
+          child: Text(
+            data,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+        editorBuilder: (context, removeOverlay, data, setData) {
+          // Use focusnode for updating values
+          final focusNode = FocusNode();
+          final textController = TextEditingController(text: data);
+
+          focusNode.addListener(() {
+            if (!focusNode.hasFocus) {
+              // The TextFormField has lost focus.  Submit the data.
+              setData(textController.text, eventType: FieldEventType.submit);
+              removeOverlay(); // Close the editor
+            }
+          });
+
+          return ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: TextFormField(
+              controller: textController, // Use the controller
+              focusNode: focusNode, // Assign the FocusNode
+              maxLines: null, // Allow multiple lines
+            ),
+          );
+        },
+      ),
+      FieldPrototype(
         idName: 'response_scheme',
         displayName: 'Response Scheme',
+        dataType: Map,
+        defaultData: {},
+        visualizerBuilder: (data) {
+          // Get a more formatted preview for maps and lists
+          String getPreview(dynamic value) {
+            if (value is Map) {
+              return '{${value.length} fields}';
+            } else if (value is List) {
+              return '[${value.length} items]';
+            } else if (value is String && value.length > 30) {
+              return '"${value.substring(0, 27)}..."';
+            } else {
+              return value.toString();
+            }
+          }
+
+          return Text(
+            getPreview(data),
+            style: const TextStyle(color: Colors.white),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          );
+        },
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: JsonEditorField(
+            initialValue: encoder.convert(data),
+            onChanged: (value) {
+              try {
+                final parsed = jsonDecode(value);
+                // Use FieldEventType.submit to ensure the framework recognizes this as a final value
+                setData(parsed, eventType: FieldEventType.submit);
+              } catch (e) {
+                print('Invalid JSON: $e');
+              }
+            },
+          ),
+        ),
+      ),
+    ],
+    onExecute: (ports, fields, state, f, p) async {
+      // Not executed in the editor.
+    },
+    styleBuilder: (state) => FlNodeStyle(
+      decoration: BoxDecoration(
+        color: Colors.pinkAccent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      headerStyleBuilder: (state) => buildHeaderStyle(
+        headerColor: Colors.pink,
+        isCollapsed: state.isCollapsed,
+      ),
+    ),
+  );
+}
+
+NodePrototype guidedCompletionNodeOAI() {
+  return NodePrototype(
+    idName: 'oai.guided_completion',
+    displayName: 'OpenAI Guided Completion',
+    description:
+        '[VertexAI] Generates a response based on a provided response schema.',
+    ports: [
+      DataInputPortPrototype(
+        idName: 'messages',
+        displayName: 'Messages',
+        dataType: List,
+        style: inputDataPortStyle,
+      ),
+      DataOutputPortPrototype(
+        idName: 'response',
+        displayName: 'Response',
+        dataType: String,
+        style: outputDataPortStyle,
+      ),
+    ],
+    fields: [
+      FieldPrototype(
+        idName: 'model',
+        displayName: 'Model',
+        dataType: String,
+        defaultData: "chatgpt-4o-latest",
+        visualizerBuilder: (data) =>
+            Text(data, style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data,
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'temperature',
+        displayName: 'Temperature',
+        dataType: double,
+        defaultData: 0.1,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = double.tryParse(value) ?? 0.1;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'max_tokens',
+        displayName: 'Max Tokens',
+        dataType: int,
+        defaultData: 2048,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = int.tryParse(value) ?? 2048;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'response_format',
+        displayName: 'Response Format',
         dataType: Map,
         defaultData: {},
         visualizerBuilder: (data) {
@@ -538,6 +717,104 @@ NodePrototype chatCompletionNode() {
   );
 }
 
+NodePrototype chatCompletionNodeOAI() {
+  return NodePrototype(
+    idName: 'oai.chat_completion',
+    displayName: 'OpenAI Chat Completion',
+    description: 'Generates a chat response using vertexAI chat completion.',
+    ports: [
+      DataInputPortPrototype(
+        idName: 'messages',
+        displayName: 'Messages',
+        dataType: List,
+        style: inputDataPortStyle,
+      ),
+      DataOutputPortPrototype(
+        idName: 'response',
+        displayName: 'Response',
+        dataType: String,
+        style: outputDataPortStyle,
+      ),
+    ],
+    fields: [
+      FieldPrototype(
+        idName: 'model',
+        displayName: 'Model',
+        dataType: String,
+        defaultData: "chatgpt-4o-latest",
+        visualizerBuilder: (data) =>
+            Text(data, style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data,
+            onFieldSubmitted: (value) {
+              setData(value, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'temperature',
+        displayName: 'Temperature',
+        dataType: double,
+        defaultData: 0.2,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = double.tryParse(value) ?? 0.2;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+      FieldPrototype(
+        idName: 'max_tokens',
+        displayName: 'Max Tokens',
+        dataType: int,
+        defaultData: 2048,
+        visualizerBuilder: (data) =>
+            Text(data.toString(), style: const TextStyle(color: Colors.white)),
+        editorBuilder: (context, removeOverlay, data, setData) =>
+            ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 200),
+          child: TextFormField(
+            initialValue: data.toString(),
+            keyboardType: TextInputType.number,
+            onFieldSubmitted: (value) {
+              final parsed = int.tryParse(value) ?? 2048;
+              setData(parsed, eventType: FieldEventType.submit);
+              removeOverlay();
+            },
+          ),
+        ),
+      ),
+    ],
+    onExecute: (ports, fields, state, f, p) async {
+      // Not executed in the editor.
+    },
+    styleBuilder: (state) => FlNodeStyle(
+      decoration: BoxDecoration(
+        color: Colors.greenAccent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      headerStyleBuilder: (state) => buildHeaderStyle(
+        headerColor: Colors.green,
+        isCollapsed: state.isCollapsed,
+      ),
+    ),
+  );
+}
+
 //
 // Register the YALW nodes (only those that define parameters)
 //
@@ -545,5 +822,7 @@ void registerNodes(BuildContext context, FlNodeEditorController controller) {
   controller.registerNodePrototype(formatNode());
   controller.registerNodePrototype(convertTextOpenAiFormatNode());
   controller.registerNodePrototype(guidedCompletionNode());
+  controller.registerNodePrototype(guidedCompletionNodeOAI());
   controller.registerNodePrototype(chatCompletionNode());
+  controller.registerNodePrototype(chatCompletionNodeOAI());
 }
