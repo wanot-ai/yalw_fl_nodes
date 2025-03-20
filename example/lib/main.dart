@@ -28,7 +28,7 @@ class NodeEditorExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Node Editor Example',
+      title: 'Hello YALW editor!',
       theme: ThemeData.dark(),
       home: const NodeEditorExampleScreen(),
       debugShowCheckedModeBanner: kDebugMode,
@@ -155,9 +155,9 @@ class NodeEditorExampleScreenState extends State<NodeEditorExampleScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "Welcome to FlNodes live example! Keep in mind that this is a work in progress and some features may not work as expected.",
+            "YALW editor.",
           ),
-          backgroundColor: Colors.blue,
+          backgroundColor: Colors.black,
         ),
       );
 
