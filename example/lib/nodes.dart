@@ -102,17 +102,30 @@ NodePrototype convertTextOpenAiFormatNode() {
   );
 }
 
-//
-// Node: format
-// This node formats and validates output using provided schemas.
-// Its parameters are "expected_schema" and "desired_schema".
-//
+NodePrototype inputNode() {
+  return NodePrototype(
+    idName: "input",
+    displayName: "Starting point",
+    description: "YALW Job을 실행하기 위한 Entry point입니다. 기능 X",
+    ports: [
+      DataOutputPortPrototype(
+        idName: 'input',
+        displayName: 'Input',
+        dataType: Map,
+        style: outputDataPortStyle,
+      ),
+    ],
+    onExecute: (ports, fields, state, f, p) async {
+      // Not executed in the editor.
+    },
+  );
+}
+
 NodePrototype formatNode() {
   return NodePrototype(
     idName: 'format',
-    displayName: 'Format dictionaries',
-    description:
-        '딕셔너리 형태의 입력을 검증하고 다른 형태로 변환합니다.',
+    displayName: 'Format dictionary',
+    description: '딕셔너리 형태의 입력을 검증하고 다른 형태로 변환합니다.',
     ports: [
       DataInputPortPrototype(
         idName: 'input',
@@ -123,7 +136,7 @@ NodePrototype formatNode() {
       DataOutputPortPrototype(
         idName: 'result',
         displayName: 'Result',
-        dataType: Map,
+        dataType: dynamic, // can be string or map
         style: outputDataPortStyle,
       ),
     ],
@@ -556,7 +569,6 @@ NodePrototype guidedCompletionNodeOAI() {
   );
 }
 
-
 NodePrototype chatCompletionNode() {
   return NodePrototype(
     idName: 'vertex.chat_completion',
@@ -988,10 +1000,12 @@ NodePrototype enumCompletionNode() {
     ),
   );
 }
+
 //
 // Register the YALW nodes (only those that define parameters)
 //
 void registerNodes(BuildContext context, FlNodeEditorController controller) {
+  controller.registerNodePrototype(inputNode());
   controller.registerNodePrototype(formatNode());
   controller.registerNodePrototype(convertTextOpenAiFormatNode());
   controller.registerNodePrototype(guidedCompletionNode());
