@@ -546,6 +546,86 @@ class _NodeWidgetState extends State<NodeWidget> {
           );
   }
 
+  Future<Map<String, String>?> _showAddDynamicPortDialog(
+      BuildContext context) async {
+    final portNameController = TextEditingController();
+    String selectedType = 'String';
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add Dynamic Output Port'),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: portNameController,
+                    decoration: const InputDecoration(labelText: 'Port Name'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedType,
+                    items: const [
+                      DropdownMenuItem(child: Text('String'), value: 'String'),
+                      DropdownMenuItem(child: Text('int'), value: 'int'),
+                      DropdownMenuItem(child: Text('double'), value: 'double'),
+                      DropdownMenuItem(child: Text('Map'), value: 'Map'),
+                      DropdownMenuItem(child: Text('List'), value: 'List'),
+                      DropdownMenuItem(
+                          child: Text('dynamic'), value: 'dynamic'),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        selectedType = value ?? 'String';
+                      });
+                    },
+                    decoration: const InputDecoration(labelText: 'Port Type'),
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (portNameController.text.isNotEmpty) {
+                  Navigator.of(context).pop({
+                    'portName': portNameController.text,
+                    'portType': selectedType,
+                  });
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Type _parseTypeFromString(String typeString) {
+    switch (typeString) {
+      case 'String':
+        return String;
+      case 'int':
+        return int;
+      case 'double':
+        return double;
+      case 'Map':
+        return Map;
+      case 'List':
+        return List;
+      default:
+        return dynamic;
+    }
+  }
+
   List<ContextMenuEntry> _defaultNodeContextMenuEntries() {
     List<ContextMenuEntry> entries = [
       const MenuHeader(text: 'Node Menu'),
@@ -608,24 +688,26 @@ class _NodeWidgetState extends State<NodeWidget> {
       ),
     ];
 
-    // If the node supports dynamic ports, add an option to create one.
     if (_supportsDynamicPorts(widget.node.prototype)) {
       entries.add(const MenuDivider());
       entries.add(
         MenuItem(
           label: 'Add Dynamic Output Port',
           icon: Icons.add,
-          onSelected: () {
-            // For example, auto-generate a port id using a prefix and current port count.
-            final newPortId = "dynamic_${widget.node.ports.length}";
-            widget.node.addDynamicPort(
-              portId: newPortId,
-              dataType: dynamic,
-              displayName: newPortId,
-              direction: PortDirection.output,
-            );
-            // Refresh the UI.
-            setState(() {});
+          onSelected: () async {
+            final result = await _showAddDynamicPortDialog(context);
+            if (result != null) {
+              final portName = result['portName']!;
+              final portTypeString = result['portType']!;
+              Type portType = _parseTypeFromString(portTypeString);
+              widget.node.addDynamicPort(
+                portId: portName,
+                dataType: portType,
+                displayName: portName,
+                direction: PortDirection.output,
+              );
+              setState(() {});
+            }
           },
         ),
       );

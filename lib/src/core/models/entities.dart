@@ -489,7 +489,6 @@ final class NodeInstance {
       prototype.ports.map((p) => MapEntry(p.idName, p)),
     );
     final ports = <String, PortInstance>{};
-
     final jsonPorts = json['ports'] as Map<String, dynamic>;
     for (final entry in jsonPorts.entries) {
       final portId = entry.key;
@@ -497,7 +496,6 @@ final class NodeInstance {
       if (portPrototypes.containsKey(portId)) {
         ports[portId] = PortInstance.fromJson(portJson, portPrototypes);
       } else {
-        // Allow dynamic ports only if this node supports data mapping.
         if (_supportsDynamicPorts(prototype) && portJson['isDynamic'] == true) {
           ports[portId] = PortInstance.fromJson(
             portJson,
@@ -515,8 +513,6 @@ final class NodeInstance {
         }
       }
     }
-
-    // Process fields and state as usual.
     final fieldPrototypes = Map.fromEntries(
       prototype.fields.map((p) => MapEntry(p.idName, p)),
     );
@@ -549,13 +545,13 @@ extension DynamicPortsExtension on NodeInstance {
     PortDirection direction = PortDirection.output,
   }) {
     // Disallow dynamic input ports for non-input nodes.
-    if (this.prototype.idName == 'input' && direction == PortDirection.input) {
+    if (prototype.idName == 'input' && direction == PortDirection.input) {
       throw Exception('Input node cannot have dynamic input ports.');
     }
     if (!_supportsDynamicPorts(this.prototype)) {
       throw Exception('This node type does not support dynamic ports.');
     }
-    if (this.ports.containsKey(portId)) return; // Port already exists.
+    if (ports.containsKey(portId)) return; // Port already exists.
     final dynamicPrototype = DynamicPortPrototype(
       idName: portId,
       displayName: displayName,
