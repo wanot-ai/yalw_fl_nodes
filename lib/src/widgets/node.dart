@@ -22,8 +22,8 @@ import 'builders.dart';
 typedef _TempLink = ({String nodeId, String portId});
 
 /// The main NodeWidget which represents a node in the editor.
-/// This revised version uses a unified port collection (allPorts) so that both static and dynamic ports
-/// behave identically during linking, dragging, and rendering.
+/// It now ensures that fields (regardless of whether a custom fieldBuilder is used)
+/// still respond to tap events in the same way as before.
 class NodeWidget extends StatefulWidget {
   final FlNodeEditorController controller;
   final NodeInstance node;
@@ -55,7 +55,7 @@ class _NodeWidgetState extends State<NodeWidget> {
   // Timer for auto-scrolling when dragging near the edge.
   Timer? _edgeTimer;
 
-  // The last known pointer position.
+  // The last known position of the pointer (GestureDetector).
   Offset? _lastPanPosition;
 
   // Temporary link locator used during linking.
@@ -180,7 +180,6 @@ class _NodeWidgetState extends State<NodeWidget> {
     _edgeTimer?.cancel();
   }
 
-// First, update _isNearPort() to use the unified ports map.
   _TempLink? _isNearPort(Offset position) {
     final worldPosition = screenToWorld(position, viewportOffset, viewportZoom);
     final near = Rect.fromCenter(
@@ -193,13 +192,10 @@ class _NodeWidgetState extends State<NodeWidget> {
 
     for (final nodeId in nearNodeIds) {
       final node = widget.controller.nodes[nodeId]!;
-      // Iterate over the combined ports.
-      for (final entry in node.allPorts.entries) {
-        final portKey = entry.key; // unified key
-        final port = entry.value;
+      for (final port in node.ports.values) {
         final absolutePortPosition = node.offset + port.offset;
         if ((worldPosition - absolutePortPosition).distance < 12) {
-          return (nodeId: node.id, portId: portKey);
+          return (nodeId: node.id, portId: port.prototype.idName);
         }
       }
     }
@@ -211,12 +207,10 @@ class _NodeWidgetState extends State<NodeWidget> {
     _isLinking = true;
   }
 
-// Update _onLinkUpdate() to use the unified port lookup.
   void _onLinkUpdate(Offset position) {
     final worldPosition = screenToWorld(position, viewportOffset, viewportZoom);
     final node = widget.controller.nodes[_tempLink!.nodeId]!;
-    // Use allPorts to get the port.
-    final port = node.allPorts[_tempLink!.portId]!;
+    final port = node.ports[_tempLink!.portId]!;
     final absolutePortOffset = node.offset + port.offset;
 
     widget.controller.drawTempLink(
@@ -244,12 +238,15 @@ class _NodeWidgetState extends State<NodeWidget> {
     widget.controller.clearTempLink();
   }
 
-  /// Wraps a field’s content in a GestureDetector.
+  /// UPDATED _buildField:
+  /// This method now always wraps the field content in a GestureDetector that
+  /// handles tap events—even when a custom fieldBuilder is provided.
   Widget _buildField(FieldInstance field) {
     if (widget.node.state.isCollapsed) {
       return SizedBox(key: field.key, height: 0, width: 0);
     }
 
+    // Get the field content either from the custom builder or use default visualizer.
     final fieldContent = widget.fieldBuilder != null
         ? widget.fieldBuilder!(context, field, widget.node.builtStyle)
         : Container(
@@ -270,6 +267,7 @@ class _NodeWidgetState extends State<NodeWidget> {
             ),
           );
 
+    // Wrap the content with a GestureDetector to ensure tap handling.
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
@@ -292,7 +290,6 @@ class _NodeWidgetState extends State<NodeWidget> {
     );
   }
 
-  /// Build port widget using the default builder if no custom builder is provided.
   Widget _buildPort(PortInstance port) {
     if (widget.node.state.isCollapsed) {
       return SizedBox(key: port.key, height: 0, width: 0);
@@ -322,202 +319,36 @@ class _NodeWidgetState extends State<NodeWidget> {
   }
 
   List<Widget> _generateLayout() {
-    // Separate static ports by direction.
-    final staticInPorts = widget.node.ports.values
+    final inPorts = widget.node.ports.values
         .where((port) => port.prototype.direction == PortDirection.input)
         .toList();
-    final staticOutPorts = widget.node.ports.values
+    final outPorts = widget.node.ports.values
         .where((port) => port.prototype.direction == PortDirection.output)
         .toList();
-
-    // Separate dynamic ports by direction.
-    final dynamicInPorts = widget.node.dynamicPorts.values
-        .where((port) => port.prototype.direction == PortDirection.input)
-        .toList();
-    final dynamicOutPorts = widget.node.dynamicPorts.values
-        .where((port) => port.prototype.direction == PortDirection.output)
-        .toList();
-
-    List<Widget> widgets = [];
-
-    // Render static ports if any.
-    if (staticInPorts.isNotEmpty || staticOutPorts.isNotEmpty) {
-      widgets.add(
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children:
-                    staticInPorts.map((port) => _buildPort(port)).toList(),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children:
-                    staticOutPorts.map((port) => _buildPort(port)).toList(),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Render dynamic ports in their own section.
-    if (dynamicInPorts.isNotEmpty || dynamicOutPorts.isNotEmpty) {
-      widgets.add(const SizedBox(height: 10));
-      widgets.add(const Text(
-        "Dynamic Ports",
-        style: TextStyle(fontWeight: FontWeight.bold),
-      ));
-      widgets.add(
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children:
-                    dynamicInPorts.map((port) => _buildPort(port)).toList(),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children:
-                    dynamicOutPorts.map((port) => _buildPort(port)).toList(),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Button to add a new dynamic port.
-    widgets.add(
-      Align(
-        alignment: Alignment.center,
-        child: TextButton.icon(
-          onPressed: _showAddDynamicPortDialog,
-          icon: const Icon(Icons.add),
-          label: const Text("Add Dynamic Port"),
-        ),
-      ),
-    );
-
-    // Render node fields if any.
     final fields = widget.node.fields.values.toList();
-    if (fields.isNotEmpty) {
-      widgets.add(const SizedBox(height: 16));
-      widgets.addAll(fields.map((field) => _buildField(field)).toList());
-    }
 
-    return widgets;
-  }
-
-  /// Shows a dialog to add a new dynamic port.
-  void _showAddDynamicPortDialog() {
-    final portNameController = TextEditingController();
-    String direction = "input"; // default direction
-    String dataTypeStr = "dynamic"; // default data type
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Add Dynamic Port"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: portNameController,
-                decoration: const InputDecoration(labelText: "Port Name"),
-              ),
-              DropdownButtonFormField<String>(
-                value: direction,
-                items: ["input", "output"]
-                    .map((d) => DropdownMenuItem(
-                          child: Text(d),
-                          value: d,
-                        ))
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) direction = val;
-                },
-                decoration: const InputDecoration(labelText: "Direction"),
-              ),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: "Data Type (e.g., String, Map, List)",
-                ),
-                onChanged: (val) => dataTypeStr = val,
-              ),
-            ],
+    return [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: inPorts.map((port) => _buildPort(port)).toList(),
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Cancel"),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: outPorts.map((port) => _buildPort(port)).toList(),
             ),
-            TextButton(
-              onPressed: () {
-                final portName = portNameController.text.trim();
-                if (portName.isNotEmpty) {
-                  late Type dataType;
-                  switch (dataTypeStr.toLowerCase()) {
-                    case "string":
-                      dataType = String;
-                      break;
-                    case "map":
-                    case "dictionary":
-                      dataType = Map;
-                      break;
-                    case "list":
-                      dataType = List;
-                      break;
-                    default:
-                      dataType = dynamic;
-                  }
-
-                  PortPrototype newPort;
-                  if (direction == "input") {
-                    newPort = DataInputPortPrototype(
-                      idName: portName,
-                      displayName: portName,
-                      dataType: dataType,
-                      style: const FlPortStyle(
-                        color: Colors.green,
-                        shape: FlPortShape.circle,
-                      ),
-                    );
-                  } else {
-                    newPort = DataOutputPortPrototype(
-                      idName: portName,
-                      displayName: portName,
-                      dataType: dataType,
-                      style: const FlPortStyle(
-                        color: Colors.orange,
-                        shape: FlPortShape.circle,
-                      ),
-                    );
-                  }
-                  setState(() {
-                    widget.node.dynamicPorts[UniqueKey().toString()] =
-                        PortInstance(prototype: newPort);
-                  });
-                }
-                Navigator.of(context).pop();
-              },
-              child: const Text("Add"),
-            ),
-          ],
-        );
-      },
-    );
+          ),
+        ],
+      ),
+      if (fields.isNotEmpty) const SizedBox(height: 16),
+      ...fields.map((field) => _buildField(field)),
+    ];
   }
 
   void _showFieldEditorOverlay(
@@ -716,7 +547,7 @@ class _NodeWidgetState extends State<NodeWidget> {
   }
 
   List<ContextMenuEntry> _defaultNodeContextMenuEntries() {
-    return [
+    List<ContextMenuEntry> entries = [
       const MenuHeader(text: 'Node Menu'),
       MenuItem(
         label: 'See Description',
@@ -776,6 +607,41 @@ class _NodeWidgetState extends State<NodeWidget> {
         onSelected: () => widget.controller.clipboard.copySelection(),
       ),
     ];
+
+    // If the node supports dynamic ports, add an option to create one.
+    if (_supportsDynamicPorts(widget.node.prototype)) {
+      entries.add(const MenuDivider());
+      entries.add(
+        MenuItem(
+          label: 'Add Dynamic Output Port',
+          icon: Icons.add,
+          onSelected: () {
+            // For example, auto-generate a port id using a prefix and current port count.
+            final newPortId = "dynamic_${widget.node.ports.length}";
+            widget.node.addDynamicPort(
+              portId: newPortId,
+              dataType: dynamic,
+              displayName: newPortId,
+              direction: PortDirection.output,
+            );
+            // Refresh the UI.
+            setState(() {});
+          },
+        ),
+      );
+    }
+    return entries;
+  }
+
+  bool _supportsDynamicPorts(NodePrototype prototype) {
+    // Only these node types support dynamic ports (and the "input" node disallows custom inputs)
+    const allowed = {
+      'input',
+      'format',
+      'vertex.guided_completion',
+      'oai.guided_completion',
+    };
+    return allowed.contains(prototype.idName);
   }
 
   List<ContextMenuEntry> _portContextMenuEntries(
@@ -799,8 +665,8 @@ class _NodeWidgetState extends State<NodeWidget> {
     final List<MapEntry<String, NodePrototype>> compatiblePrototypes = [];
 
     if (fromLink) {
-      final startPort = widget
-          .controller.nodes[_tempLink!.nodeId]!.allPorts[_tempLink!.portId]!;
+      final startPort =
+          widget.controller.nodes[_tempLink!.nodeId]!.ports[_tempLink!.portId]!;
       widget.controller.nodePrototypes.forEach((key, value) {
         if (value.ports.any(
           (port) =>
@@ -832,8 +698,8 @@ class _NodeWidgetState extends State<NodeWidget> {
           );
           if (fromLink) {
             final addedNode = widget.controller.nodes.values.last;
-            final startPort = widget.controller.nodes[_tempLink!.nodeId]!
-                .allPorts[_tempLink!.portId]!;
+            final startPort = widget
+                .controller.nodes[_tempLink!.nodeId]!.ports[_tempLink!.portId]!;
             widget.controller.addLink(
               _tempLink!.nodeId,
               _tempLink!.portId,
@@ -864,6 +730,7 @@ class _NodeWidgetState extends State<NodeWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // If a custom nodeBuilder is provided, use it directly.
     if (widget.nodeBuilder != null) {
       return widget.nodeBuilder!(context, widget.node);
     }
@@ -876,8 +743,7 @@ class _NodeWidgetState extends State<NodeWidget> {
             clipBehavior: Clip.none,
             children: [
               Container(decoration: widget.node.builtStyle.decoration),
-              // Render all port indicators using the unified allPorts getter.
-              ...widget.node.allPorts.entries.map(
+              ...widget.node.ports.entries.map(
                 (entry) => _buildPortIndicator(entry.value),
               ),
               Column(
@@ -933,7 +799,6 @@ class _NodeWidgetState extends State<NodeWidget> {
     );
   }
 
-// Update _updatePortsPosition() to iterate over all ports.
   void _updatePortsPosition() {
     if (!mounted) return;
 
@@ -948,12 +813,14 @@ class _NodeWidgetState extends State<NodeWidget> {
     final nodeOffset = nodeBox.localToGlobal(Offset.zero);
     final updatedPorts = <PortInstance>[];
 
-    // Iterate over combined ports.
-    for (final port in widget.node.allPorts.values) {
+    for (final port in widget.node.ports.values) {
       final portKey = port.key;
       final RenderBox? portBox =
           portKey.currentContext?.findRenderObject() as RenderBox?;
-      if (portBox == null) continue;
+
+      if (portBox == null) {
+        continue;
+      }
 
       final portOffset = portBox.localToGlobal(Offset.zero);
       var relativeOffset = portOffset - nodeOffset;
@@ -971,12 +838,13 @@ class _NodeWidgetState extends State<NodeWidget> {
             : renderBoxSize.width,
         relativeOffset.dy + portBox.size.height / 2,
       );
+
       port.offset = newOffset;
       updatedPorts.add(port);
     }
 
     if (updatedPorts.isNotEmpty) {
-      setState(() {}); // Trigger a rebuild.
+      setState(() {}); // Just triggers a rebuild
     }
   }
 }

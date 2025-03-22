@@ -120,6 +120,17 @@ abstract class PortPrototype {
   });
 }
 
+class DynamicPortPrototype extends PortPrototype {
+  DynamicPortPrototype({
+    required super.idName,
+    required super.displayName,
+    super.dataType,
+    super.style,
+    super.direction = PortDirection.output,
+    super.type = PortType.data,
+  });
+}
+
 class DataInputPortPrototype extends PortPrototype {
   DataInputPortPrototype({
     required super.idName,
@@ -154,45 +165,88 @@ class ControlOutputPortPrototype extends PortPrototype {
   }) : super(direction: PortDirection.output, type: PortType.control);
 }
 
+Type _parseTypeFromString(String typeString) {
+  switch (typeString) {
+    case 'String':
+      return String;
+    case 'int':
+      return int;
+    case 'double':
+      return double;
+    case 'Map':
+      return Map;
+    case 'List':
+      return List;
+    default:
+      return dynamic;
+  }
+}
+
 /// A port is a connection point on a node.
 ///
 /// In addition to the prototype, it holds the data, links, and offset.
 final class PortInstance {
   final PortPrototype prototype;
-  dynamic data; // Not saved as it is only used during in graph execution
+  dynamic data; // used only at runtime
   Set<Link> links = {};
-  Offset offset; // Determined by Flutter
-  final GlobalKey key = GlobalKey(); // Determined by Flutter
+  Offset offset; // determined by Flutter
+  final GlobalKey key = GlobalKey();
+  final bool isDynamic; // new flag for dynamic ports
 
   PortInstance({
     required this.prototype,
     this.offset = Offset.zero,
+    this.isDynamic = false,
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'idName': prototype.idName,
       'links': links.map((link) => link.toJson()).toList(),
     };
+    if (isDynamic) {
+      json['isDynamic'] = true;
+      json['dataType'] = prototype.dataType.toString();
+      json['displayName'] = prototype.displayName;
+    }
+    return json;
   }
 
   factory PortInstance.fromJson(
     Map<String, dynamic> json,
-    Map<String, PortPrototype> portPrototypes,
-  ) {
-    if (!portPrototypes.containsKey(json['idName'].toString())) {
-      throw Exception('Port prototype not found');
+    Map<String, PortPrototype> portPrototypes, {
+    bool isDynamic = false,
+    Type? dataType,
+    String? displayName,
+  }) {
+    if (!isDynamic) {
+      if (!portPrototypes.containsKey(json['idName'].toString())) {
+        throw Exception('Port prototype not found');
+      }
+      final prototype = portPrototypes[json['idName'].toString()]!;
+      final instance = PortInstance(prototype: prototype);
+      instance.links = (json['links'] as List<dynamic>)
+          .map((linkJson) => Link.fromJson(linkJson))
+          .toSet();
+      return instance;
+    } else {
+      // Create a dynamic prototype from the JSON information.
+      final dynamicPrototype = DynamicPortPrototype(
+        idName: json['idName'],
+        displayName: displayName ?? json['displayName'] ?? json['idName'],
+        dataType: dataType ?? _parseTypeFromString(json['dataType']),
+        // Fallback: choose a style from any available static prototype.
+        style: portPrototypes.values.first.style,
+        direction: PortDirection.output,
+        type: PortType.data,
+      );
+      final instance =
+          PortInstance(prototype: dynamicPrototype, isDynamic: true);
+      instance.links = (json['links'] as List<dynamic>)
+          .map((linkJson) => Link.fromJson(linkJson))
+          .toSet();
+      return instance;
     }
-
-    final prototype = portPrototypes[json['idName'].toString()]!;
-
-    final instance = PortInstance(prototype: prototype);
-
-    instance.links = (json['links'] as List<dynamic>)
-        .map((linkJson) => Link.fromJson(linkJson))
-        .toSet();
-
-    return instance;
   }
 
   PortInstance copyWith({
@@ -353,6 +407,17 @@ final class NodeState {
   int get hashCode => isSelected.hashCode ^ isCollapsed.hashCode;
 }
 
+bool _supportsDynamicPorts(NodePrototype prototype) {
+  // Only these node types support dynamic ports (aside from the input node which does not allow custom inputs)
+  const allowed = {
+    'input',
+    'format',
+    'vertex.guided_completion',
+    'oai.guided_completion',
+  };
+  return allowed.contains(prototype.idName);
+}
+
 /// A node is a component in the node editor.
 ///
 /// It holds the instances of the ports and fields, the offset, the data and the state.
@@ -365,7 +430,6 @@ final class NodeInstance {
 
   final NodePrototype prototype;
   final Map<String, PortInstance> ports;
-  final Map<String, PortInstance> dynamicPorts = {};
   final Map<String, FieldInstance> fields;
   final NodeState state = NodeState();
   final Function(NodeInstance node) onRendered;
@@ -405,15 +469,11 @@ final class NodeInstance {
       'id': id,
       'idName': prototype.idName,
       'ports': ports.map((k, v) => MapEntry(k, v.toJson())),
-      // NEW: serialize dynamic ports too.
-      'dynamicPorts': dynamicPorts.map((k, v) => MapEntry(k, v.toJson())),
       'fields': fields.map((k, v) => MapEntry(k, v.toJson(dataHandlers))),
       'state': state.toJson(),
       'offset': [offset.dx, offset.dy],
     };
   }
-
-  Map<String, PortInstance> get allPorts => {...ports, ...dynamicPorts};
 
   factory NodeInstance.fromJson(
     Map<String, dynamic> json, {
@@ -424,39 +484,48 @@ final class NodeInstance {
     if (!nodePrototypes.containsKey(json['idName'].toString())) {
       throw Exception('Node prototype not found');
     }
-
     final prototype = nodePrototypes[json['idName'].toString()]!;
-
     final portPrototypes = Map.fromEntries(
-      prototype.ports.map(
-        (prototype) => MapEntry(prototype.idName, prototype),
-      ),
+      prototype.ports.map((p) => MapEntry(p.idName, p)),
     );
+    final ports = <String, PortInstance>{};
 
-    final ports = (json['ports'] as Map<String, dynamic>).map(
-      (id, portJson) {
-        return MapEntry(
-          id,
-          PortInstance.fromJson(portJson, portPrototypes),
-        );
-      },
-    );
+    final jsonPorts = json['ports'] as Map<String, dynamic>;
+    for (final entry in jsonPorts.entries) {
+      final portId = entry.key;
+      final portJson = entry.value as Map<String, dynamic>;
+      if (portPrototypes.containsKey(portId)) {
+        ports[portId] = PortInstance.fromJson(portJson, portPrototypes);
+      } else {
+        // Allow dynamic ports only if this node supports data mapping.
+        if (_supportsDynamicPorts(prototype) && portJson['isDynamic'] == true) {
+          ports[portId] = PortInstance.fromJson(
+            portJson,
+            {
+              portId: DynamicPortPrototype(
+                idName: portId,
+                displayName: portJson['displayName'] ?? portId,
+                dataType: _parseTypeFromString(portJson['dataType']),
+              )
+            },
+            isDynamic: true,
+            dataType: _parseTypeFromString(portJson['dataType']),
+            displayName: portJson['displayName'],
+          );
+        }
+      }
+    }
 
+    // Process fields and state as usual.
     final fieldPrototypes = Map.fromEntries(
-      prototype.fields.map(
-        (prototype) => MapEntry(prototype.idName, prototype),
+      prototype.fields.map((p) => MapEntry(p.idName, p)),
+    );
+    final fields = (json['fields'] as Map<String, dynamic>).map(
+      (id, fieldJson) => MapEntry(
+        id,
+        FieldInstance.fromJson(fieldJson, fieldPrototypes, dataHandlers),
       ),
     );
-
-    final fields = (json['fields'] as Map<String, dynamic>).map(
-      (id, fieldJson) {
-        return MapEntry(
-          id,
-          FieldInstance.fromJson(fieldJson, fieldPrototypes, dataHandlers),
-        );
-      },
-    );
-
     final instance = NodeInstance(
       id: json['id'],
       prototype: prototype,
@@ -465,35 +534,46 @@ final class NodeInstance {
       onRendered: onRenderedCallback,
       offset: Offset(json['offset'][0], json['offset'][1]),
     );
-
     final state = NodeState.fromJson(json['state']);
     instance.state.isSelected = state.isSelected;
     instance.state.isCollapsed = state.isCollapsed;
-
-    // NEW: load dynamic ports if available.
-    if (json.containsKey('dynamicPorts')) {
-      final dynPortsJson = json['dynamicPorts'] as Map<String, dynamic>;
-      // We reuse the same portPrototypes mapping for deserialization.
-      instance.dynamicPorts.addAll(dynPortsJson.map(
-        (id, portJson) => MapEntry(
-          id,
-          PortInstance.fromJson(portJson, portPrototypes),
-        ),
-      ));
-    }
-
     return instance;
   }
+}
 
-  // NEW: Optional helper to add a dynamic port.
-  void addDynamicPort(PortPrototype portPrototype) {
-    final dynamicPortId = UniqueKey().toString();
-    dynamicPorts[dynamicPortId] = PortInstance(prototype: portPrototype);
-  }
-
-  // NEW: Optional helper to remove a dynamic port by its key.
-  void removeDynamicPort(String dynamicPortId) {
-    dynamicPorts.remove(dynamicPortId);
+extension DynamicPortsExtension on NodeInstance {
+  void addDynamicPort({
+    required String portId,
+    required Type dataType,
+    required String displayName,
+    PortDirection direction = PortDirection.output,
+  }) {
+    // Disallow dynamic input ports for non-input nodes.
+    if (this.prototype.idName == 'input' && direction == PortDirection.input) {
+      throw Exception('Input node cannot have dynamic input ports.');
+    }
+    if (!_supportsDynamicPorts(this.prototype)) {
+      throw Exception('This node type does not support dynamic ports.');
+    }
+    if (this.ports.containsKey(portId)) return; // Port already exists.
+    final dynamicPrototype = DynamicPortPrototype(
+      idName: portId,
+      displayName: displayName,
+      dataType: dataType,
+      style: direction == PortDirection.input
+          ? const FlPortStyle(
+              color: Colors.lime,
+              shape: FlPortShape.circle,
+            )
+          : const FlPortStyle(
+              color: Colors.red,
+              shape: FlPortShape.circle,
+            ),
+      direction: direction,
+      type: PortType.data,
+    );
+    this.ports[portId] =
+        PortInstance(prototype: dynamicPrototype, isDynamic: true);
   }
 }
 
