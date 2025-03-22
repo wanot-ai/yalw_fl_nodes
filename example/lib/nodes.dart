@@ -106,12 +106,12 @@ NodePrototype inputNode() {
   return NodePrototype(
     idName: "input",
     displayName: "Starting point",
-    description: "YALW Job을 실행하기 위한 Entry point입니다. 기능 X",
+    description: "YALW Job을 실행하기 위한 Entry point입니다. 기능 X, 타입 자유.",
     ports: [
       DataOutputPortPrototype(
         idName: 'input',
         displayName: 'Input',
-        dataType: Map,
+        dataType: dynamic,
         style: outputDataPortStyle,
       ),
     ],

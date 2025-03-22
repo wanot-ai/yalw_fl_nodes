@@ -365,6 +365,7 @@ final class NodeInstance {
 
   final NodePrototype prototype;
   final Map<String, PortInstance> ports;
+  final Map<String, PortInstance> dynamicPorts = {};
   final Map<String, FieldInstance> fields;
   final NodeState state = NodeState();
   final Function(NodeInstance node) onRendered;
@@ -404,11 +405,15 @@ final class NodeInstance {
       'id': id,
       'idName': prototype.idName,
       'ports': ports.map((k, v) => MapEntry(k, v.toJson())),
+      // NEW: serialize dynamic ports too.
+      'dynamicPorts': dynamicPorts.map((k, v) => MapEntry(k, v.toJson())),
       'fields': fields.map((k, v) => MapEntry(k, v.toJson(dataHandlers))),
       'state': state.toJson(),
       'offset': [offset.dx, offset.dy],
     };
   }
+
+  Map<String, PortInstance> get allPorts => {...ports, ...dynamicPorts};
 
   factory NodeInstance.fromJson(
     Map<String, dynamic> json, {
@@ -462,11 +467,33 @@ final class NodeInstance {
     );
 
     final state = NodeState.fromJson(json['state']);
-
     instance.state.isSelected = state.isSelected;
     instance.state.isCollapsed = state.isCollapsed;
 
+    // NEW: load dynamic ports if available.
+    if (json.containsKey('dynamicPorts')) {
+      final dynPortsJson = json['dynamicPorts'] as Map<String, dynamic>;
+      // We reuse the same portPrototypes mapping for deserialization.
+      instance.dynamicPorts.addAll(dynPortsJson.map(
+        (id, portJson) => MapEntry(
+          id,
+          PortInstance.fromJson(portJson, portPrototypes),
+        ),
+      ));
+    }
+
     return instance;
+  }
+
+  // NEW: Optional helper to add a dynamic port.
+  void addDynamicPort(PortPrototype portPrototype) {
+    final dynamicPortId = UniqueKey().toString();
+    dynamicPorts[dynamicPortId] = PortInstance(prototype: portPrototype);
+  }
+
+  // NEW: Optional helper to remove a dynamic port by its key.
+  void removeDynamicPort(String dynamicPortId) {
+    dynamicPorts.remove(dynamicPortId);
   }
 }
 
